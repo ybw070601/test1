@@ -2,12 +2,12 @@ name: Update Weibo Data
 
 on:
   schedule:
-    # 每10分钟运行一次（UTC时间，自行换算；例如北京时间0:00对应UTC 16:00）
+    # 每10分钟执行一次 (UTC 时间)
     - cron: '*/10 * * * *'
-  workflow_dispatch:   # 允许手动触发
+  workflow_dispatch:   # 支持手动触发
 
-# 全局环境变量：强制所有 Action 使用 Node.js 24，消除弃用警告
 env:
+  # 强制 Actions 使用 Node.js 24 以避免弃用警告
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
