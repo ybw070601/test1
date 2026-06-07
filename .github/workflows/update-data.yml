@@ -2,13 +2,15 @@ name: Update Weibo Data
 
 on:
   schedule:
-    # 每10分钟执行一次 (UTC 时间)
     - cron: '*/10 * * * *'
-  workflow_dispatch:   # 支持手动触发
+  workflow_dispatch:
 
 env:
-  # 强制 Actions 使用 Node.js 24 以避免弃用警告
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+# 显式授予写入仓库的权限
+permissions:
+  contents: write
 
 jobs:
   fetch:
@@ -16,6 +18,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          # 使用内置 Token 进行后续推送
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
