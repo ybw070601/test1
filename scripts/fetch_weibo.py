@@ -4,9 +4,10 @@ import os
 import re
 from datetime import datetime, timezone, timedelta
 
-# 北京时间时区
+# 北京时间
 TZ = timezone(timedelta(hours=8))
 
+# 用户UID与姓名
 USER_LIST = [
     ("6353131515", "张桂源"),
     ("7740929779", "张函瑞"),
@@ -17,15 +18,16 @@ USER_LIST = [
     ("3177765082", "陈浚铭"),
 ]
 
-COOKIE = os.environ.get("WEIBO_COOKIE", "")
+COOKIE = os.environ.get("WEIBO_COOKIE")
 if not COOKIE:
-    raise ValueError("未设置 WEIBO_COOKIE 环境变量")
+    raise RuntimeError("环境变量 WEIBO_COOKIE 未设置")
 
-def extract_xsrf(cookie):
+def extract_xsrf(cookie: str) -> str:
+    """从 Cookie 中提取 XSRF-TOKEN"""
     match = re.search(r'XSRF-TOKEN=([^;]+)', cookie)
     return match.group(1) if match else ""
 
-def fetch_user(uid, cookie):
+def fetch_user(uid: str, cookie: str) -> dict:
     url = f"https://weibo.com/ajax/profile/info?uid={uid}&scene=profile"
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
@@ -48,34 +50,48 @@ def fetch_user(uid, cookie):
             "total": int(counter.get("total_cnt", 0)),
             "followers": int(user.get("followers_count", 0))
         }
-    return None
+    else:
+        raise ValueError("API 返回异常：" + json.dumps(data, ensure_ascii=False))
 
 def main():
+    # 1. 获取当前所有用户的最新数据
     current = {}
     for uid, name in USER_LIST:
         try:
             info = fetch_user(uid, COOKIE)
-            if info:
-                current[uid] = info
-                print(f"✅ {name} 获取成功")
+            current[uid] = info
+            print(f"✅ {name} 数据获取成功")
         except Exception as e:
-            print(f"❌ {name} 失败: {e}")
+            print(f"❌ {name} 获取失败：{e}")
 
-    # 读取现有 data.json
+    if not current:
+        print("未获取到任何数据，退出")
+        return
+
+    # 2. 读取旧的 data.json（若存在）
+    old_data = {}
     try:
         with open("data.json", "r", encoding="utf-8") as f:
             old_data = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
-        old_data = {}
+        pass
 
-    # 判断是否需要更新 baseline（如果日期改变或不存在）
+    # 3. 处理 baseline（今日0点基准数据）
     today_str = datetime.now(TZ).strftime("%Y-%m-%d")
     baseline = old_data.get("baseline", {})
+    # 如果日期改变或没有基准数据，则用当前数据更新基准
     if old_data.get("date") != today_str or not baseline:
-        # 新的一天，用当前数据作为基准
-        baseline = {uid: {k: v for k, v in info.items() if k != "followers"} for uid, info in current.items()}
-        print("📅 已更新今日基准数据")
+        baseline = {}
+        for uid, info in current.items():
+            baseline[uid] = {
+                "comment": info["comment"],
+                "repost": info["repost"],
+                "like": info["like"],
+                "total": info["total"]
+            }
+        print("📅 已刷新今日基准数据（新的一天）")
 
+    # 4. 构造新的 data.json
     new_data = {
         "date": today_str,
         "baseline": baseline,
